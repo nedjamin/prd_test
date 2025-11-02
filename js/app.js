@@ -1,13 +1,50 @@
 const siteHeader = document.querySelector(".site-header");
 const menuToggle = document.querySelector(".menu-toggle");
-const navLinks = document.querySelectorAll('.site-nav a[href^="#"]');
+const navLinks = Array.from(
+  document.querySelectorAll(".site-nav .js-navlink")
+);
 const siteNavLinks = document.querySelectorAll(".site-nav a");
 const anchorLinks = document.querySelectorAll('a[href^="#"]');
 const observedSections = document.querySelectorAll("[data-observe]");
+const scrollSections = document.querySelectorAll(".js-section");
 const yearEl = document.getElementById("year");
 const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 const HEADER_CONDENSE_OFFSET = 160;
 let scrollTicking = false;
+let activeNavLink = null;
+
+const navLinkMap = new Map();
+navLinks.forEach((link) => {
+  const href = link.getAttribute("href");
+  if (href && href.startsWith("#")) {
+    navLinkMap.set(href.slice(1), link);
+  }
+});
+
+const activateNavLink = (id) => {
+  if (!id || !navLinkMap.has(id)) {
+    return;
+  }
+
+  const targetLink = navLinkMap.get(id);
+  if (activeNavLink === targetLink) {
+    return;
+  }
+
+  navLinks.forEach((link) => {
+    link.classList.remove("is-active");
+    link.removeAttribute("aria-current");
+  });
+
+  targetLink.classList.add("is-active");
+  targetLink.setAttribute("aria-current", "page");
+  activeNavLink = targetLink;
+};
+
+const defaultActiveId = navLinks[0]?.getAttribute("href")?.slice(1);
+if (defaultActiveId) {
+  activateNavLink(defaultActiveId);
+}
 
 const closeMenu = () => {
   document.body.classList.remove("menu-open");
@@ -65,6 +102,7 @@ anchorLinks.forEach((link) => {
     }
 
     event.preventDefault();
+    activateNavLink(targetId.slice(1));
     const offset = getHeaderOffset();
     const top =
       target.getBoundingClientRect().top + window.pageYOffset - offset;
@@ -80,51 +118,31 @@ anchorLinks.forEach((link) => {
   });
 });
 
-const setActiveLink = () => {
-  if (!navLinks.length) {
+const observeSections = () => {
+  if (!scrollSections.length || !navLinks.length) {
     return;
   }
-
-  navLinks.forEach((navLink) => navLink.setAttribute("aria-current", "false"));
-  navLinks[0].setAttribute("aria-current", "true");
-
-  const sections = Array.from(navLinks).map((link) => {
-    const target = document.querySelector(link.getAttribute("href"));
-    return target;
-  });
 
   const observer = new IntersectionObserver(
     (entries) => {
       entries.forEach((entry) => {
-        const id = entry.target.getAttribute("id");
-        const matchingLink = document.querySelector(
-          `.site-nav a[href="#${id}"]`
-        );
-        if (!matchingLink) {
-          return;
-        }
-        if (entry.isIntersecting) {
-          navLinks.forEach((navLink) =>
-            navLink.setAttribute("aria-current", "false")
-          );
-          matchingLink.setAttribute("aria-current", "true");
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.35) {
+          activateNavLink(entry.target.id);
         }
       });
     },
     {
-      rootMargin: "-40% 0px -50% 0px",
-      threshold: [0.25, 0.6],
+      rootMargin: "-100px 0px -30% 0px",
+      threshold: [0.35, 0.5, 0.75],
     }
   );
 
-  sections.forEach((section) => {
-    if (section) {
-      observer.observe(section);
-    }
+  scrollSections.forEach((section) => {
+    observer.observe(section);
   });
 };
 
-setActiveLink();
+observeSections();
 
 const setScrollReveal = () => {
   if (prefersReducedMotion.matches) {
